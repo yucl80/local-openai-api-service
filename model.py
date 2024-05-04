@@ -12,7 +12,7 @@ import chatglm_cpp
 import chatglm
 import gc
 from llama_cpp import Llama
-
+import extends
 
 class LlamaProxy:
     def __init__(self, models: List[ModelSettings]) -> None:
@@ -145,6 +145,9 @@ class LlamaProxy:
         if settings.chat_format == "chatglm3":
             _model = chatglm_cpp.Pipeline(settings.model)
             _model.create_chat_completion = chatglm.create_chat_completion
+            
+        if settings.chat_format == "bge-onnx":        
+            _model =extends.BgeOnnxModel(settings.model,settings.model_alias)           
 
         elif settings.chat_format == "firefunction" :           
             _model = Llama.from_pretrained(

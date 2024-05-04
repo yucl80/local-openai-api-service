@@ -2,28 +2,29 @@ from llama_cpp.server.types import (
     CreateCompletionRequest,
     CreateEmbeddingRequest,
     CreateChatCompletionRequest,
-    ChatCompletionRequestMessage,
 )
 from llama_cpp.llama_types import (
-    ChatCompletionResponseChoice,
-    ChatCompletionMessageToolCall,
     ChatCompletionStreamResponseChoice,
-    CreateChatCompletionStreamResponse,
-    CompletionUsage,
     ChatCompletionStreamResponseDelta,
-    CreateChatCompletionResponse,
-    ChatCompletionResponseMessage,
-    ChatCompletionRequestAssistantMessage,
-    ChatCompletionMessageToolCallFunction,
-    ChatCompletionStreamResponseDeltaEmpty,
     ChatCompletionMessageToolCallChunk,
     ChatCompletionMessageToolCallChunkFunction,
+    CreateEmbeddingResponse,
+    Embedding,
+    EmbeddingUsage,
 )
 import json
 import uuid
 import ast
 import llama_cpp
 import time
+from optimum.onnxruntime import ORTModelForCustomTasks
+from transformers import AutoTokenizer
+
+from typing import (
+    List,
+    Optional,
+    Union,
+)
 
 
 def process_ast_node(node):
@@ -283,7 +284,7 @@ def openfunction_stream_chat(body: CreateCompletionRequest, llama) -> any:
 def functionary_stream_chat(body: CreateCompletionRequest, llama) -> any:
     response = llama.create_chat_completion(
         messages=body.messages, tools=body.tools, tool_choice="auto", stream=False
-    ) 
+    )
     stream_response_choices = []
     choices = response["choices"]
     choices_index = 0
@@ -398,3 +399,61 @@ def handle_firefunction(body: CreateChatCompletionRequest, llama) -> any:
         },
     }
     return result
+
+
+class BgeOnnxModel:
+    _model: str
+    _tokenizer: any
+    __ORTModel: ORTModelForCustomTasks
+
+    def __init__(self, model_path: str, model_alias: str, **kwargs: any):
+        """Initialize the sentence_transformer."""
+        super().__init__(**kwargs)
+        self._model = model_alias
+        self._tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self._ORTModel = ORTModelForCustomTasks.from_pretrained(model_path)
+
+    def create_embedding(
+        self, input: Union[str, List[str]], model: Optional[str] = None
+    ) -> CreateEmbeddingResponse:
+        """Embed a string.
+
+        Args:
+            input: The utf-8 encoded string to embed.
+
+        Returns:
+            An embedding object.
+        """
+
+        input = input if isinstance(input, list) else [input]
+
+        # get numeric embeddings
+        embeds: Union[List[List[float]], List[List[List[float]]]]
+
+        inputs_token = self._tokenizer(
+            input,
+            padding="longest",
+            return_tensors="np",
+        )
+        embeds = self._ORTModel.forward(**inputs_token)["sentence_embedding"].tolist()
+        total_tokens = len(inputs_token["input_ids"][0])
+
+        # convert to CreateEmbeddingResponse
+        data: List[Embedding] = [
+            {
+                "object": "embedding",
+                "embedding": emb,
+                "index": idx,
+            }
+            for idx, emb in enumerate(embeds)
+        ]
+
+        return CreateEmbeddingResponse(
+            object="list",
+            model=self._model,
+            data=data,
+            usage=EmbeddingUsage(
+                prompt_tokens=total_tokens,
+                total_tokens=total_tokens,
+            ),
+        )

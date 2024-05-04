@@ -42,13 +42,14 @@ from llama_cpp.server.cli import add_args_from_model, parse_model_from_args
 def main():
     description = "🦙 Llama.cpp python server. Host your own LLMs!🚀"
     parser = argparse.ArgumentParser(description=description)
-
+    current_file_path = __file__
+    current_directory = os.path.dirname(current_file_path)   
     add_args_from_model(parser, Settings)
     parser.add_argument(
         "--config_file",
         type=str,
         help="Path to a config file to load.",
-        default="/home/test/api_server.cfg",
+        default= current_directory + "/server.cfg",
     )
     server_settings: ServerSettings | None = None
     model_settings: list[ModelSettings] = []

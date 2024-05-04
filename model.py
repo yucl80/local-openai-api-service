@@ -129,24 +129,12 @@ class LlamaProxy:
 
         kwargs = {}
 
-        if settings.hf_model_repo_id is not None:
-            create_fn = functools.partial(
-                llama_cpp.Llama.from_pretrained,
-                repo_id=settings.hf_model_repo_id,
-                filename=settings.model,
-            )
-        elif settings.chat_format == "chatglm":
-            create_fn = chatglm_cpp.Pipeline
-            kwargs["model_path"] = settings.model
-        else:
-            create_fn = llama_cpp.Llama
-            kwargs["model_path"] = settings.model
 
-        if settings.chat_format == "chatglm3":
+        if settings.chat_format == "chatglm3" or settings.chat_format == "chatglm":
             _model = chatglm_cpp.Pipeline(settings.model)
             _model.create_chat_completion = chatglm.create_chat_completion
             
-        if settings.chat_format == "bge-onnx":        
+        elif settings.chat_format == "bge-onnx":        
             _model =extends.BgeOnnxModel(settings.model,settings.model_alias)           
 
         elif settings.chat_format == "firefunction" :           
@@ -189,6 +177,16 @@ class LlamaProxy:
                 n_threads_batch=settings.n_threads_batch,
             )
         else:
+            if settings.hf_model_repo_id is not None:
+                create_fn = functools.partial(
+                    llama_cpp.Llama.from_pretrained,
+                    repo_id=settings.hf_model_repo_id,
+                    filename=settings.model,
+                )           
+            else:
+                create_fn = llama_cpp.Llama
+                kwargs["model_path"] = settings.model
+                
             _model = create_fn(
                 **kwargs,
                 # Model Params

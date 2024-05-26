@@ -133,6 +133,7 @@ def get_openfunctions_prompt(messages: list = [], functions: list = []) -> str:
 def format_response(response):
     result = []
     choices = response["choices"]
+    finish_reason = "stop"
     for choice in choices:
         text = choice["text"]
         calls = strip_function_calls(text)
@@ -150,9 +151,10 @@ def format_response(response):
                         "type": "function",
                     }
                 )
+                finish_reason = "tool_calls"
         result.append(
             {
-                "finish_reason": choice["finish_reason"],
+                "finish_reason": finish_reason,
                 "index": choice["index"],
                 "logprobs": choice["logprobs"],
                 "message": {

@@ -21,28 +21,35 @@ from llama_cpp.llama_types import (
     ChatCompletionResponseMessage,
     ChatCompletionRequestAssistantMessage,
     ChatCompletionMessageToolCallFunction,
-    ChatCompletionStreamResponseDeltaEmpty
+    ChatCompletionStreamResponseDeltaEmpty,
 )
 
 
 def _buid_msg(body: ChatCompletionRequestMessage):
-    messages = [
-        chatglm_cpp.ChatMessage(role=msg["role"], content=msg["content"])
-        for msg in body.messages
-    ]
+    messages = []
+    for msg in body.messages:
+        role = msg["role"]
+        if role not in ["user", "assistant", "system", "observation"]:
+            role = "observation"
+        messages.append(chatglm_cpp.ChatMessage(role=role, content=msg["content"]))
+
     if body.tools:
         system_content = (
             "Answer the following questions as best as you can. You have access to the following tools:\n"
             + json.dumps(body.tools, indent=4)
         )
         messages.insert(
-            0, chatglm_cpp.ChatMessage(
-                role="system", content=system_content)
+            0, chatglm_cpp.ChatMessage(role="system", content=system_content)
         )
     return messages
 
 
-def stream_chat(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCompletionRequestMessage, max_context_length: int, num_threads: int):
+def stream_chat(
+    chatglm_pipeline: chatglm_cpp.Pipeline,
+    body: ChatCompletionRequestMessage,
+    max_context_length: int,
+    num_threads: int,
+):
     max_tokens = 1024
     if body.max_tokens:
         max_tokens = body.max_tokens
@@ -57,24 +64,32 @@ def stream_chat(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCompletionRequ
         num_threads=num_threads,
         stream=True,
     ):
-        choices = [ChatCompletionStreamResponseChoice(
-            index=1,
-            delta=ChatCompletionStreamResponseDelta(
-                content=chunk.content, role=chunk.role),
-            finish_reason=None,
-            logprobs=None,
-        )]
-        chunk= llama_cpp.ChatCompletionChunk(
+        choices = [
+            ChatCompletionStreamResponseChoice(
+                index=1,
+                delta=ChatCompletionStreamResponseDelta(
+                    content=chunk.content, role=chunk.role
+                ),
+                finish_reason=None,
+                logprobs=None,
+            )
+        ]
+        chunk = llama_cpp.ChatCompletionChunk(
             id="chatcmpl-" + uuid.uuid4().hex,
             model=body.model,
             object="chat.completion.chunk",
             created=int(time.time()),
             choices=choices,
-        )       
+        )
         yield chunk
 
 
-def create_chat_completion(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCompletionRequestMessage, max_context_length: int, num_threads: int) -> CreateChatCompletionResponse:
+def create_chat_completion(
+    chatglm_pipeline: chatglm_cpp.Pipeline,
+    body: ChatCompletionRequestMessage,
+    max_context_length: int,
+    num_threads: int,
+) -> CreateChatCompletionResponse:
     def to_json_arguments(arguments):
         def tool_call(**kwargs):
             return kwargs
@@ -83,6 +98,7 @@ def create_chat_completion(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCom
             return json.dumps(eval(arguments, dict(tool_call=tool_call)))
         except Exception:
             return arguments
+
     if not body.messages:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "empty messages")
 
@@ -101,14 +117,13 @@ def create_chat_completion(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCom
         temperature=body.temperature,
         num_threads=num_threads,
     )
-    logging.info(
-        f'prompt: "{messages[-1].content}", sync response: "{output.content}"')
+    logging.info(f'prompt: "{messages[-1].content}", sync response: "{output.content}"')
     prompt_tokens = len(
-        chatglm_pipeline.tokenizer.encode_messages(
-            messages, max_context_length)
+        chatglm_pipeline.tokenizer.encode_messages(messages, max_context_length)
     )
     completion_tokens = len(
-        chatglm_pipeline.tokenizer.encode(output.content, max_tokens))
+        chatglm_pipeline.tokenizer.encode(output.content, max_tokens)
+    )
 
     finish_reason = "stop"
     tool_calls = None
@@ -124,7 +139,7 @@ def create_chat_completion(chatglm_pipeline: chatglm_cpp.Pipeline, body: ChatCom
             )
             for tool_call in output.tool_calls
         ]
-        finish_reason = "function_call"
+        finish_reason = "tool_calls"
 
     if tool_calls is None:
         choices = [

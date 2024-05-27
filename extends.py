@@ -106,7 +106,7 @@ def get_openfunctions_prompt(messages: list = [], functions: list = []) -> str:
     Returns:
     - str: The formatted conversation prompt.
     """
-    system = "You are an AI programming assistant"  # , utilizing the Gorilla LLM model, developed by Gorilla LLM, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
+    system = "You are an AI programming assistant , utilizing the Gorilla LLM model, developed by Gorilla LLM, and you only answer questions related to computer science. For politically sensitive questions, security and privacy issues, and other non-computer science questions, you will refuse to answer."
     if len(messages) > 0:
         if messages[0]["role"] == "system":
             system = messages[0]["content"]
@@ -124,7 +124,7 @@ def get_openfunctions_prompt(messages: list = [], functions: list = []) -> str:
     if len(functions) == 0:
         return f"{system}\n### Instruction: <<question>> {user_query}\n### Response: "
     functions_string = json.dumps(functions)
-    result = f"<｜begin▁of▁sentence｜>{system}\n### Instruction: <<function>>{functions_string}\n{user_query} ### Response: "
+    result = f"<｜begin▁of▁sentence｜>{system}\n### Instruction: <<function>>{functions_string}\n{user_query}### Response: "
 
     print(result)
     return result
@@ -133,7 +133,6 @@ def get_openfunctions_prompt(messages: list = [], functions: list = []) -> str:
 def format_response(response):
     result = []
     choices = response["choices"]
-    finish_reason = "stop"
     for choice in choices:
         text = choice["text"]
         calls = strip_function_calls(text)
@@ -151,7 +150,10 @@ def format_response(response):
                         "type": "function",
                     }
                 )
-                finish_reason = "tool_calls"
+
+        finish_reason = "stop"
+        if tool_calls:
+            finish_reason = "tool_calls"
         result.append(
             {
                 "finish_reason": finish_reason,
@@ -180,7 +182,7 @@ def handle_openfunction(body: CreateCompletionRequest, llama) -> any:
         max_tokens=body.max_tokens,
     )
     tool_calls = format_response(response)
-    return {
+    result = {
         "id": response["id"],
         "object": "chat.completion",
         "created": response["created"],
@@ -192,6 +194,9 @@ def handle_openfunction(body: CreateCompletionRequest, llama) -> any:
             "total_tokens": response["usage"]["total_tokens"],
         },
     }
+    print("response:", end=" ")
+    print(result)
+    return result
 
 
 def openfunction_stream_chat(body: CreateCompletionRequest, llama) -> any:
@@ -283,6 +288,21 @@ def openfunction_stream_chat(body: CreateCompletionRequest, llama) -> any:
         yield chatCompletionChunk
 
 
+def functionary_chat(body: CreateCompletionRequest, llama) -> any:
+    messages = []
+    for msg in body.messages:
+        role = msg["role"]
+        if role not in ["user", "system", "tool"]:
+            role = "user"
+        messages.append({"role": role, "content": msg["content"]})
+    response = llama.create_chat_completion(
+        messages=messages, tools=body.tools, tool_choice="auto", stream=False
+    )
+    print("response:", end=" ")
+    print(response)
+    return response
+
+
 def functionary_stream_chat(body: CreateCompletionRequest, llama) -> any:
     response = llama.create_chat_completion(
         messages=body.messages, tools=body.tools, tool_choice="auto", stream=False
@@ -352,29 +372,49 @@ def handle_firefunction(body: CreateChatCompletionRequest, llama) -> any:
         if "<functioncall>" in message_content:
             function_call_json = message_content[len("<functioncall>") :]
             function_call_data = json.loads(function_call_json)
-            choices.append(
-                {
-                    "index": choice["index"],
-                    "logprobs": choice["logprobs"],
-                    "finish_reason": choice["finish_reason"],
-                    "message": {
-                        "content": message_content,
-                        "role": choice["message"]["role"],
-                        "tool_calls": [
-                            {
-                                "id": "tool_call_" + uuid.uuid4().hex,
-                                "type": "function",
-                                "function": {
-                                    "name": function_call_data["name"],
-                                    "arguments": json.dumps(
-                                        function_call_data["arguments"]
-                                    ),
-                                },
-                            }
-                        ],
-                    },
-                }
-            )
+            print(function_call_data)
+            name = None
+            if "name" in function_call_data:
+                name = function_call_data["name"]
+            if "type" in function_call_data:
+                name = function_call_data["type"]
+            arguments = "{}"
+            if "arguments" in function_call_data:
+                arguments = json.dumps(function_call_data["arguments"])
+            if name is not None:
+                choices.append(
+                    {
+                        "index": choice["index"],
+                        "logprobs": choice["logprobs"],
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "content": message_content,
+                            "role": choice["message"]["role"],
+                            "tool_calls": [
+                                {
+                                    "id": "tool_call_" + uuid.uuid4().hex,
+                                    "type": "function",
+                                    "function": {
+                                        "name": name,
+                                        "arguments": arguments,
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                )
+            else:
+                choices.append(
+                    {
+                        "index": choice["index"],
+                        "logprobs": choice["logprobs"],
+                        "finish_reason": choice["finish_reason"],
+                        "message": {
+                            "content": message_content,
+                            "role": choice["message"]["role"],
+                        },
+                    }
+                )
         else:
             choices.append(
                 {
@@ -400,6 +440,8 @@ def handle_firefunction(body: CreateChatCompletionRequest, llama) -> any:
             "total_tokens": response["usage"]["total_tokens"],
         },
     }
+    print("response:", end=" ")
+    print(result)
     return result
 
 

@@ -124,9 +124,8 @@ def get_openfunctions_prompt(messages: list = [], functions: list = []) -> str:
     if len(functions) == 0:
         return f"{system}\n### Instruction: <<question>> {user_query}\n### Response: "
     functions_string = json.dumps(functions)
-    result = f"<｜begin▁of▁sentence｜>{system}\n### Instruction: <<function>>{functions_string}\n{user_query}### Response: "
+    result = f"<|begin▁of▁sentence|>{system}\n### Instruction: <<function>>{functions_string}\n{user_query}### Response: "
 
-    print(result)
     return result
 
 
@@ -286,26 +285,18 @@ def openfunction_stream_chat(body: CreateCompletionRequest, llama) -> any:
             choices=stream_response_choices,
         )
         yield chatCompletionChunk
-
-
+        
 def functionary_chat(body: CreateCompletionRequest, llama) -> any:
-    messages = []
-    for msg in body.messages:
-        role = msg["role"]
-        if role not in ["user", "system", "tool"]:
-            role = "user"
-        messages.append({"role": role, "content": msg["content"]})
     response = llama.create_chat_completion(
-        messages=messages, tools=body.tools, tool_choice="auto", stream=False
+        messages=body.messages, tools=body.tools, tool_choice="auto", stream=False ,temperature=body.temperature, top_p=body.top_p, logprobs=body.logprobs, max_tokens=body.max_tokens
     )
     print("response:", end=" ")
     print(response)
     return response
-
-
+    
 def functionary_stream_chat(body: CreateCompletionRequest, llama) -> any:
     response = llama.create_chat_completion(
-        messages=body.messages, tools=body.tools, tool_choice="auto", stream=False
+        messages=body.messages, tools=body.tools, tool_choice="auto", stream=False ,temperature=body.temperature, top_p=body.top_p, logprobs=body.logprobs, max_tokens=body.max_tokens
     )
     stream_response_choices = []
     choices = response["choices"]

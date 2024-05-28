@@ -494,20 +494,23 @@ async def create_chat_completion(
             return chatglm.create_chat_completion(
                 chatglm_pipeline, body, max_context_length, num_threads
             )
-    if model_chat_format == "functionary-v2" and body.stream:        
-        iterator = extends.functionary_stream_chat( body, llama)
-        send_chan, recv_chan = anyio.create_memory_object_stream(10)
-        return EventSourceResponse(
-            recv_chan,
-            data_sender_callable=partial(  # type: ignore
-                get_event_publisher,
-                request=request,
-                inner_send_chan=send_chan,
-                iterator=iterator,
-            ),
-            sep="\n",
-            ping_message_factory=_ping_message_factory,
-        )        
+    if model_chat_format == "functionary-v2" : 
+        if body.stream:        
+            iterator = extends.functionary_stream_chat( body, llama)
+            send_chan, recv_chan = anyio.create_memory_object_stream(10)
+            return EventSourceResponse(
+                recv_chan,
+                data_sender_callable=partial(  # type: ignore
+                    get_event_publisher,
+                    request=request,
+                    inner_send_chan=send_chan,
+                    iterator=iterator,
+                ),
+                sep="\n",
+                ping_message_factory=_ping_message_factory,
+            ) 
+        else:
+            return  extends.functionary_chat( body, llama)     
 
     elif model_chat_format == "openfunctions":       
         if body.stream:

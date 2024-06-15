@@ -494,9 +494,10 @@ async def create_chat_completion(
             return chatglm.create_chat_completion(
                 chatglm_pipeline, body, max_context_length, num_threads
             )
-    if model_chat_format == "functionary-v2" : 
+    if model_chat_format == "functionary-v2": 
+        response = extends.functionary_chat( body,model_settings.model, llama) 
         if body.stream:        
-            iterator = extends.functionary_stream_chat( body, llama)
+            iterator = extends.functionary_stream_chat( body, response)
             send_chan, recv_chan = anyio.create_memory_object_stream(10)
             return EventSourceResponse(
                 recv_chan,
@@ -510,8 +511,8 @@ async def create_chat_completion(
                 ping_message_factory=_ping_message_factory,
             ) 
         else:
-            return  extends.functionary_chat( body, llama)     
-
+            return  response           
+  
     elif model_chat_format == "openfunctions":       
         if body.stream:
             iterator = extends.openfunction_stream_chat( body, llama)
@@ -534,6 +535,7 @@ async def create_chat_completion(
         return extends.handle_firefunction(body, llama)
     
     else:
+        del kwargs["min_tokens"]
         iterator_or_completion: Union[
             llama_cpp.ChatCompletion, Iterator[llama_cpp.ChatCompletionChunk]
         ] = await run_in_threadpool(llama.create_chat_completion, **kwargs)

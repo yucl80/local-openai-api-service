@@ -285,19 +285,72 @@ def openfunction_stream_chat(body: CreateCompletionRequest, llama) -> any:
             choices=stream_response_choices,
         )
         yield chatCompletionChunk
-        
-def functionary_chat(body: CreateCompletionRequest, llama) -> any:
-    response = llama.create_chat_completion(
-        messages=body.messages, tools=body.tools, tool_choice="auto", stream=False ,temperature=body.temperature, top_p=body.top_p, logprobs=body.logprobs, max_tokens=body.max_tokens
-    )
+
+
+def functionary_chat(
+    body: CreateCompletionRequest, model: str, llama
+) -> any:
+    if  "v2.5" in model:
+        response = functionary_chat_v2_5(body, llama)
+    else:
+        response = llama.create_chat_completion(
+            messages=body.messages,
+            tools=body.tools,
+            tool_choice="auto",
+            stream=False,
+            temperature=body.temperature,
+            top_p=body.top_p,
+            logprobs=body.logprobs,
+            max_tokens=body.max_tokens,
+        )
     print("response:", end=" ")
     print(response)
     return response
-    
-def functionary_stream_chat(body: CreateCompletionRequest, llama) -> any:
+
+
+def functionary_chat_v2_5(body: CreateCompletionRequest, llama) -> any:
     response = llama.create_chat_completion(
-        messages=body.messages, tools=body.tools, tool_choice="auto", stream=False ,temperature=body.temperature, top_p=body.top_p, logprobs=body.logprobs, max_tokens=body.max_tokens
+        messages=body.messages,
+        tools=body.tools,
+        tool_choice="auto",
+        stream=False,
+        temperature=body.temperature,
+        top_p=body.top_p,
+        logprobs=body.logprobs,
+        max_tokens=body.max_tokens,
     )
+    print(response)
+    for choice in response["choices"]:
+        calls = []
+        for call in choice["message"]["tool_calls"]:
+            if call["type"] == "function":
+                name = call["function"]["name"]
+                if name.startswith("functions."):
+                    name = name[10:]
+                fields = name.split("<|reserved_special_token_249|>")
+                for field in fields:
+                    callWithArgs = field.split("\n")
+                    arguments = {}
+                    if len(callWithArgs) == 2:
+                        arguments = callWithArgs[1]
+                    function_name = callWithArgs[0]
+                    if function_name:
+                        calls.append(
+                            {
+                                "function": {
+                                    "name": callWithArgs[0],
+                                    "arguments": arguments,
+                                },
+                                "type": "function",
+                                "id": "call_" + uuid.uuid4().hex,
+                            }
+                        )
+        if calls:
+            choice["message"]["tool_calls"] = calls
+    return response
+
+
+def functionary_stream_chat(body: CreateCompletionRequest, response) -> any:
     stream_response_choices = []
     choices = response["choices"]
     choices_index = 0

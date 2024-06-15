@@ -27,12 +27,6 @@ from llama_cpp.llama_types import (
 
 def _buid_msg(body: ChatCompletionRequestMessage):
     messages = []
-    for msg in body.messages:
-        role = msg["role"]
-        if role not in ["user", "assistant", "system", "observation"]:
-            role = "observation"
-        messages.append(chatglm_cpp.ChatMessage(role=role, content=msg["content"]))
-
     if body.tools:
         system_content = (
             "Answer the following questions as best as you can. You have access to the following tools:\n"
@@ -41,6 +35,17 @@ def _buid_msg(body: ChatCompletionRequestMessage):
         messages.insert(
             0, chatglm_cpp.ChatMessage(role="system", content=system_content)
         )
+    for msg in body.messages:
+        role = msg["role"]
+        if role not in ["user", "assistant", "system", "observation"]:
+            role = "observation"
+        content = msg["content"]
+        if isinstance(content, str):
+            messages.append(chatglm_cpp.ChatMessage(role=role, content=content))
+        else:
+            for text in content:
+                messages.append(chatglm_cpp.ChatMessage(role=role, content=text["text"] ))                            
+       
     return messages
 
 
@@ -117,7 +122,7 @@ def create_chat_completion(
         temperature=body.temperature,
         num_threads=num_threads,
     )
-    logging.info(f'prompt: "{messages[-1].content}", sync response: "{output.content}"')
+    print("raw output: ", output)
     prompt_tokens = len(
         chatglm_pipeline.tokenizer.encode_messages(messages, max_context_length)
     )

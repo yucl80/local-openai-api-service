@@ -322,6 +322,8 @@ def functionary_chat_v2_5(body: CreateCompletionRequest, llama) -> any:
     print(response)
     for choice in response["choices"]:
         calls = []
+        if "tool_calls" not in choice["message"]:
+            continue
         for call in choice["message"]["tool_calls"]:
             if call["type"] == "function":
                 name = call["function"]["name"]

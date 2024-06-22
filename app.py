@@ -470,7 +470,7 @@ async def create_chat_completion(
 
     model_settings = llama_proxy._model_settings_dict[body.model]
     model_chat_format = model_settings.chat_format
-    if model_chat_format == "chatglm3":        
+    if model_chat_format == "chatglm":        
         max_context_length = model_settings.n_ctx
         num_threads = model_settings.n_threads
         chatglm_pipeline = llama

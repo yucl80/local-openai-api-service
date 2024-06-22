@@ -130,7 +130,7 @@ class LlamaProxy:
         kwargs = {}
 
 
-        if settings.chat_format == "chatglm3" or settings.chat_format == "chatglm":
+        if settings.chat_format == "chatglm":
             _model = chatglm_cpp.Pipeline(settings.model)
             _model.create_chat_completion = chatglm.create_chat_completion
             

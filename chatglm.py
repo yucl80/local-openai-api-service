@@ -120,11 +120,11 @@ def create_chat_completion(
         do_sample=body.temperature > 0,
         top_p=body.top_p,
         temperature=body.temperature,
-        num_threads=num_threads,
+        # num_threads=num_threads,
     )
     print("raw output: ", output)
     prompt_tokens = len(
-        chatglm_pipeline.tokenizer.encode_messages(messages, max_context_length)
+        chatglm_pipeline.tokenizer.apply_chat_template(messages, max_context_length)
     )
     completion_tokens = len(
         chatglm_pipeline.tokenizer.encode(output.content, max_tokens)
